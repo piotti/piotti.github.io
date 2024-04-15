@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title></title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-size: 64px;
+            text-align: center;
+            font-family: "Space Mono", monospace;
+        }
+        #container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+        }
+        #voltage {
+            font-size: 100px;
+            color: #bcdbff;
+        }
+        .charge-block {
+            margin: 3px;
+            display: inline-block;
+        }
+        .charge-block.inactive {
+            border-style: solid;
+            border-width: 1px;
+            border-color: gray;
+        }
+
+        #myChart {
+            width: 100%;
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+    </style>
+
+
+    <script type="text/javascript">
+
+        const TOTAL_NUM_BLOCKS = 20;
+
+        var voltages, dates;
+
+        function getCharge(voltage) {
+            const table_12v = [
+                10.5,
+                11.51,
+                11.66,
+                11.81,
+                11.95,
+                12.05,
+                12.15,
+                12.30,
+                12.50,
+                12.75,
+                12.80,
+            ];
+            for (var i = 0; i < table_12v.length; i++) {
+                const v2 = table_12v[i];
+                if (v2 <= voltage) continue;
+                if (i === 0) return 0;
+                const v1 = table_12v[i-1];
+                const interp = (voltage - v1) / (v2 - v1);
+                return (interp + i - 1) / 10;
+            }
+            return 1;
+        }
+
+
+        async function getData() {
+            const res = await fetch("https://sheets.googleapis.com/v4/spreadsheets/1VwOJA38wwnzMXlAoeeSojqY1b7q2rrytFlDTLk4ZPCk/values/A1%3AB100?key=AIzaSyAxZ8Una8ygJ-43UZi4U-nJ4BJlqpXLQPA");
+            const data = await res.json();
+            console.log(data);
+            voltages = data.values.map(e => e[1]);
+            dates = data.values.map(e => new Date(e[0] * 1000));
+
+            const curr_v = voltages[0];
+            const curr_charge = getCharge(voltages[0] / 4.0);
+            document.getElementById("voltage").innerText = `${curr_v}V`;
+            let numBlocks = Math.floor(TOTAL_NUM_BLOCKS * curr_charge);
+            const chargeDiv = document.getElementById("charge");
+            chargeDiv.innerHTML = '';
+            let width = Math.floor(250 / TOTAL_NUM_BLOCKS);
+            for (var i = 0; i < TOTAL_NUM_BLOCKS; i++) {
+                let height = Math.floor(120 * (i + 1) / TOTAL_NUM_BLOCKS) - 6;
+                let active = i < numBlocks ? " active" : " inactive";
+                let color = active==' active' ? `hsl(${Math.floor(i / TOTAL_NUM_BLOCKS * 120)} 70% 50%)` : '#00000000';
+                chargeDiv.innerHTML += `<div class="charge-block ${active}" style="height: ${height}px; width: ${width}px; background-color: ${color}"></div>`;
+            }
+        }
+
+        function drawChart() {
+            const ctx = document.getElementById('myChart');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                  labels: dates,
+                  datasets: [{
+                    label: "Voltage",
+                    data: voltages,
+                    borderWidth: 1
+                  }]
+                },
+                options: {
+                  scales: {
+                    y: {
+                      beginAtZero: false
+                    },
+                    x: {
+                        type: 'time',
+                        ticks: {
+                            autoSkip: true,
+                            maxTicksLimit: 20
+                        },
+                    }
+                  },
+                  plugins: {
+                    legend: {
+                        display: false,
+                    }
+                  }
+                }
+            });
+        }
+
+        addEventListener("DOMContentLoaded", (event) => {
+            getData().then(drawChart);
+            setInterval(getData, 5000);
+        });
+    </script>
+</head>
+<body>
+    <div>
+        <canvas id="myChart"></canvas>
+    </div>
+    <div id="container">
+        <div id="voltage"></div>
+        <div id="charge"></div>
+    </div>
+
+    <script>
+        
+    </script>
+</body>
+</html>
